@@ -20,7 +20,7 @@ np.random.seed(SEED)
 # -----------------------------
 # Paths
 # -----------------------------
-MODEL_PATH = "service_LR/logreg_pipeline.pkl"
+MODEL_PATH = "service_LR/logreg_pipeline_1.pkl"
 TEST_MALIGNANT_DIR = "test/malignant"
 
 # -----------------------------
