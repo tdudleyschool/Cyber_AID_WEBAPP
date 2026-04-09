@@ -25,7 +25,7 @@ print("Using device:", device)
 # -----------------------------
 # Paths
 # -----------------------------
-MODEL_PATH = "service_CNN/cnn_model.pth"
+MODEL_PATH = "service_CNN/cnn_model_1.pth"
 TEST_MALIGNANT_DIR = "test/malignant"
 
 # -----------------------------
