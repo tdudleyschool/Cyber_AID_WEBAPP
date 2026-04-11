@@ -18,7 +18,7 @@ app.add_middleware(
 # -----------------------------
 # Load model once at startup
 # -----------------------------
-MODEL_PATH = "service_LR/logreg_pipeline_1.pkl"
+MODEL_PATH = "logreg_pipeline_1.pkl"
 
 try:
     with open(MODEL_PATH, "rb") as f:
