@@ -4,7 +4,22 @@ function normalizeUrl(value) {
     if (!value || typeof value !== 'string') {
       return '';
     }
-    return value.trim().replace(/\/+$/, '');
+    let url = value.trim().replace(/\/+$/, '');
+    if (!url) {
+      return '';
+    }
+
+    // If the string already contains a scheme, preserve it.
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(url)) {
+      return url;
+    }
+
+    // If the string starts with //, use the current page protocol.
+    if (url.startsWith('//')) {
+      return `${window.location.protocol}${url}`;
+    }
+
+    return `${window.location.protocol}//${url}`;
   }
 
   const LOAD_BALANCER_URL = normalizeUrl(window.LB_URL || window.location.origin);
@@ -14,6 +29,16 @@ function normalizeUrl(value) {
   const SERVICE_CNN_1_URL = normalizeUrl(window.SERVICE_CNN_1 || '');
   const SERVICE_CNN_2_URL = normalizeUrl(window.SERVICE_CNN_2 || '');
   const SERVICE_CNN_3_URL = normalizeUrl(window.SERVICE_CNN_3 || '');
+
+  console.log('Frontend service URLs:', {
+    LOAD_BALANCER_URL,
+    SERVICE_CNN_1_URL,
+    SERVICE_CNN_2_URL,
+    SERVICE_CNN_3_URL,
+    SERVICE_LR_1_URL,
+    SERVICE_LR_2_URL,
+    SERVICE_LR_3_URL,
+  });
 
   const fileInput = document.getElementById('fileInput');
   const dropZone = document.getElementById('dropZone');
