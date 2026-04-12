@@ -339,6 +339,7 @@ static bool proxy_to_backend(const std::string& backend_base,
 
   CURLcode res = curl_easy_perform(curl);
   if (res != CURLE_OK) {
+    std::cerr << "Backend request failed for " << url << ": " << curl_easy_strerror(res) << "\n";
     curl_slist_free_all(header_list);
     curl_easy_cleanup(curl);
     return false;
@@ -523,7 +524,7 @@ int main() {
     if (lower.rfind("http://", 0) == 0 || lower.rfind("https://", 0) == 0) {
       return url;
     }
-    return std::string("https://") + url;
+    return std::string("http://") + url;
   };
 
   auto add_url_if_valid = [&](std::vector<std::string>& list, const char* env_name) {

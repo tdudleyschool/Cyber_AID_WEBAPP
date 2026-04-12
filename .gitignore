@@ -12,6 +12,7 @@ stop_services.sh
 load_balancer/load_balancer
 load_cnn.py
 log_nb_upload_file_test.py
+response.json
 
 
 
