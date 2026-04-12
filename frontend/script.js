@@ -119,6 +119,7 @@ function normalizeUrl(value) {
   const STATUS_CHECK_INTERVAL_MS = 30000;
   const MAX_STARTUP_CHECKS = 8;
   let servicesReady = false;
+  let initialServiceCheck = true;
   let currentFile = null;
   let currentRequestId = null;
 
@@ -208,7 +209,9 @@ function normalizeUrl(value) {
   }
 
   async function ensureServicesReady() {
-    showLoading('Waking up backend services. This may take a few seconds...');
+    if (initialServiceCheck) {
+      showLoading('Waking up backend services. This may take a few seconds...');
+    }
     runBtn.disabled = true;
 
     for (let attempt = 1; attempt <= MAX_STARTUP_CHECKS; attempt += 1) {
@@ -217,13 +220,17 @@ function normalizeUrl(value) {
       if (healthy) {
         servicesReady = true;
         runBtn.disabled = false;
+        initialServiceCheck = false;
         return true;
       }
       await sleep(2500);
     }
 
-    showLoading('One or more services are still unavailable. Please wait a moment and try again.');
+    if (initialServiceCheck) {
+      showLoading('One or more services are still unavailable. Please wait a moment and try again.');
+    }
     runBtn.disabled = false;
+    initialServiceCheck = false;
     return false;
   }
   const modelInfo = {
