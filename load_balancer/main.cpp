@@ -322,10 +322,6 @@ static bool proxy_to_backend(const std::string& backend_base,
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-
-  curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
 
   struct curl_slist* header_list = nullptr;
 
@@ -368,11 +364,9 @@ static bool proxy_to_backend(const std::string& backend_base,
       curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
     }
   }
-  
+
   CURLcode res = curl_easy_perform(curl);
-  
   if (res != CURLE_OK) {
-    std::cerr << "CURL ERROR: " << curl_easy_strerror(res) << std::endl;
     curl_slist_free_all(header_list);
     curl_easy_cleanup(curl);
     return false;
@@ -586,10 +580,10 @@ int main() {
   }
 
   if (cnn_urls.empty()) {
-    cnn_urls = {"service-cnn-1.onrender.com", "service-cnn-2.onrender.com", "service-cnn-3.onrender.com"};
+    cnn_urls = {"http://127.0.0.1:8000", "http://127.0.0.1:8002", "http://127.0.0.1:8004"};
   }
   if (lr_urls.empty()) {
-    lr_urls = {"service-lr-1.onrender.com", "service-lr-2.onrender.com", "service-lr-3.onrender.com"};
+    lr_urls = {"http://127.0.0.1:8001", "http://127.0.0.1:8003", "http://127.0.0.1:8005"};
   }
 
   for (const auto& url : cnn_urls) {
