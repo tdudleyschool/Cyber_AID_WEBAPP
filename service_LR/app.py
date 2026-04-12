@@ -1,4 +1,5 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+import os
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 import pickle
 import cv2
@@ -19,6 +20,7 @@ app.add_middleware(
 # Load model once at startup
 # -----------------------------
 MODEL_PATH = "logreg_pipeline_1.pkl"
+INSTANCE_NAME = os.getenv("SERVICE_INSTANCE", "logreg-service")
 
 try:
     with open(MODEL_PATH, "rb") as f:
@@ -67,9 +69,9 @@ def health():
 
 
 @app.post("/predict")
-async def predict(
-    file: UploadFile = File(...)
-):
+async def predict(request: Request, file: UploadFile = File(...)):
+    request_id = request.headers.get("x-request-id")
+
     if logreg_pipeline is None:
         raise HTTPException(status_code=500, detail="Model not loaded.")
 
@@ -100,7 +102,9 @@ async def predict(
         return {
             "output": pred,
             "prediction": label,
-            "probability": probability
+            "probability": probability,
+            "request_id": request_id,
+            "instance": INSTANCE_NAME
         }
 
     except ValueError as e:
@@ -109,10 +113,13 @@ async def predict(
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 @app.post("/predict_threshold")
-async def predict(
+async def predict_threshold(
+    request: Request,
     file: UploadFile = File(...),
     threshold: float = Query(0.5, ge=0.0, le=1.0)
 ):
+    request_id = request.headers.get("x-request-id")
+
     if logreg_pipeline is None:
         raise HTTPException(status_code=500, detail="Model not loaded.")
 
@@ -158,7 +165,9 @@ async def predict(
             "output": pred,
             "prediction": label,
             "threshold": threshold,
-            "threshold_sweep": sweep
+            "threshold_sweep": sweep,
+            "request_id": request_id,
+            "instance": INSTANCE_NAME
         }
 
     except Exception as e:

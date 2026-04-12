@@ -6,5 +6,9 @@ cnnvenv/
 logisticvenv/
 .logisticvenv/
 .cnnvenv/
+test_load.py
+start_services.sh
+stop_services.sh
+
 
 

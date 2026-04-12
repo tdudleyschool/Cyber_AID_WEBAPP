@@ -1,5 +1,5 @@
-  // ✅ CHANGE THIS if your backend runs on a different URL/port
-  const API_URL = "http://127.0.0.1:8000";
+  // Load balancer URL for both CNN and LR requests.
+  const LOAD_BALANCER_URL = "http://127.0.0.1:9000";
 
   const fileInput = document.getElementById('fileInput');
   const dropZone = document.getElementById('dropZone');
@@ -39,10 +39,15 @@
   const footerNote = document.getElementById('footerNote');
 
   let currentFile = null;
+  let currentRequestId = null;
   const modelInfo = {
     cnn: { accuracy: '94%', description: '' },
     logreg: { accuracy: '88%', description: '' },
   };
+
+  function generateRequestId() {
+    return `req-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
 
   function humanFileSize(bytes) {
     const units = ['B','KB','MB','GB'];
@@ -185,15 +190,16 @@
     formData.append('file', currentFile);
 
     try {
+      currentRequestId = generateRequestId();
       const endpoint = useThreshold ? 'predict_threshold' : 'predict';
-      let url = `${API_URL}/${endpoint}?model=${encodeURIComponent(modelValue)}`;
-      if (useThreshold) {
-        url += `&threshold=${threshold}`;
-      }
+      const url = `${LOAD_BALANCER_URL}/${endpoint}?model=${encodeURIComponent(modelValue)}${useThreshold ? `&threshold=${threshold}` : ''}`;
 
       const resp = await fetch(url, {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+          'X-Request-ID': currentRequestId,
+        },
       });
 
       const data = await resp.json().catch(() => ({}));
@@ -201,12 +207,13 @@
       if (!resp.ok) {
         const msg = data?.detail || data?.error || `Request failed (${resp.status})`;
         predictionText.textContent = `Error: ${msg}`;
-        resultNote.textContent = '';
+        resultNote.textContent = `Request ID: ${currentRequestId}`;
         footerNote.textContent = 'Backend error';
         timeStamp.textContent = new Date().toLocaleString();
         return;
       }
 
+      const responseRequestId = data?.request_id || currentRequestId;
       predictionText.textContent = `Prediction: ${data.prediction || '—'}`;
 
       if (useThreshold) {
@@ -265,17 +272,17 @@
           });
         }
 
-        resultNote.textContent = `Threshold selected: ${threshold.toFixed(1)}`;
+        resultNote.textContent = `Threshold selected: ${threshold.toFixed(1)} • req ${responseRequestId}`;
       } else {
         probabilityPanel.style.display = 'block';
         const probability = typeof data.probability === 'number' ? data.probability : 0;
         const percentage = Math.round(probability * 10000) / 100;
         probabilityBar.style.width = `${percentage}%`;
         probabilityValue.textContent = `Probability: ${percentage.toFixed(2)}%`;
-        resultNote.textContent = 'Standard model prediction';
+        resultNote.textContent = `Standard model prediction • req ${responseRequestId}`;
       }
 
-      footerNote.textContent = 'Backend response received';
+      footerNote.textContent = `Backend response received • ${responseRequestId}`;
       timeStamp.textContent = new Date().toLocaleString();
     } catch (err) {
       console.error(err);

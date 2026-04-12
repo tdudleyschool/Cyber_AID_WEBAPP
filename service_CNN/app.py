@@ -11,7 +11,7 @@ from io import BytesIO
 import numpy as np
 
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 IMG_SIZE = 90
 MODEL_PATH = "cnn_model_1.pth"
+INSTANCE_NAME = os.getenv("SERVICE_INSTANCE", "cnn-service")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device:", device)
@@ -90,7 +91,9 @@ def health():
     return {"status": "ok"}
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(request: Request, file: UploadFile = File(...)):
+    request_id = request.headers.get("x-request-id")
+
     if model is None:
         raise HTTPException(status_code=500, detail="Model not loaded.")
 
@@ -114,7 +117,9 @@ async def predict(file: UploadFile = File(...)):
         return {
             "output": pred,
             "prediction": label,
-            "probability": probability
+            "probability": probability,
+            "request_id": request_id,
+            "instance": INSTANCE_NAME
         }
 
     except Exception as e:
@@ -122,9 +127,12 @@ async def predict(file: UploadFile = File(...)):
 
 @app.post("/predict_threshold")
 async def predict_threshold(
+    request: Request,
     file: UploadFile = File(...),
     threshold: float = Query(0.5, ge=0.0, le=1.0)
 ):
+    request_id = request.headers.get("x-request-id")
+
     if model is None:
         raise HTTPException(status_code=500, detail="Model not loaded.")
 
@@ -163,7 +171,9 @@ async def predict_threshold(
             "output": pred,
             "prediction": label,
             "threshold": threshold,
-            "threshold_sweep": sweep
+            "threshold_sweep": sweep,
+            "request_id": request_id,
+            "instance": INSTANCE_NAME
         }
 
     except Exception as e:
