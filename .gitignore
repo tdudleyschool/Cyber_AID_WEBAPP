@@ -9,6 +9,10 @@ logisticvenv/
 test_load.py
 start_services.sh
 stop_services.sh
+load_balancer/load_balancer
+#load_cnn.py
+#load_logistic.py
+
 
 
 

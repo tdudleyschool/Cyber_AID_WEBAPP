@@ -1,0 +1,90 @@
+services:
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - load_balancer
+
+  load_balancer:
+    build: ./load_balancer
+    container_name: load_balancer
+    ports:
+      - "9000:9000"
+    environment:
+      LB_CNN_URLS: "http://service_cnn_1:8000,http://service_cnn_2:8000,http://service_cnn_3:8000"
+      LB_LR_URLS: "http://service_lr_1:8000,http://service_lr_2:8000,http://service_lr_3:8000"
+    depends_on:
+      - service_cnn_1
+      - service_cnn_2
+      - service_cnn_3
+      - service_lr_1
+      - service_lr_2
+      - service_lr_3
+
+  service_cnn_1:
+    build: ./service_CNN
+    container_name: service_cnn_1
+    environment:
+      SERVICE_INSTANCE: cnn-1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  service_cnn_2:
+    build: ./service_CNN
+    container_name: service_cnn_2
+    environment:
+      SERVICE_INSTANCE: cnn-2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  service_cnn_3:
+    build: ./service_CNN
+    container_name: service_cnn_3
+    environment:
+      SERVICE_INSTANCE: cnn-3
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  service_lr_1:
+    build: ./service_LR
+    container_name: service_lr_1
+    environment:
+      SERVICE_INSTANCE: lr-1
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  service_lr_2:
+    build: ./service_LR
+    container_name: service_lr_2
+    environment:
+      SERVICE_INSTANCE: lr-2
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  service_lr_3:
+    build: ./service_LR
+    container_name: service_lr_3
+    environment:
+      SERVICE_INSTANCE: lr-3
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
