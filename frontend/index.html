@@ -37,8 +37,15 @@
           <select id="model">
             <option value="cnn">CNN (Convolutional Neural Network)</option>
             <option value="logreg">Logistic Regression</option>
-            <option value="nb">Naive Bayes</option>
           </select>
+        </div>
+
+        <div class="model-info">
+          <div class="model-meta">
+            <span class="label">Accuracy:</span>
+            <span id="accuracyText">94%</span>
+          </div>
+          <p class="model-description" id="modelDescription"></p>
         </div>
       </div>
 
@@ -48,9 +55,17 @@
 
         <div id="dropZone" class="upload" role="button" tabindex="0" aria-label="Upload image">
           <div class="big-icon">⤴</div>
-          <div>
+          <div class="upload-text">
             <div style="font-weight:900;">Drop an image here</div>
             <small>Supported: JPG, PNG, TIFF, BMP, WEBP</small>
+          </div>
+
+          <div class="upload-preview" id="uploadPreview">
+            <img id="previewImg" alt="Uploaded preview" />
+            <div class="meta">
+              <span id="fileName">—</span>
+              <span id="fileSize">—</span>
+            </div>
           </div>
 
           <div class="row">
@@ -64,15 +79,18 @@
                  accept="image/*" />
         </div>
 
-        <div class="preview" id="preview">
-          <img id="previewImg" alt="Uploaded preview" />
-          <div class="meta">
-            <span id="fileName">—</span>
-            <span id="fileSize">—</span>
-          </div>
-        </div>
+        <div class="controls-row">
+          <label class="toggle-switch">
+            <input type="checkbox" id="thresholdToggle" />
+            <span class="slider-switch"></span>
+          </label>
+          <span class="toggle-label">Threshold</span>
 
-        <div class="row" style="justify-content:flex-start; margin-top: 14px;">
+          <div class="threshold-control" id="thresholdControl">
+            <input type="range" id="thresholdRange" min="0.1" max="0.9" step="0.1" value="0.5" />
+            <span id="thresholdValue">0.5</span>
+          </div>
+
           <button class="btn-primary" id="runBtn" type="button">Run Analysis</button>
         </div>
       </div>
@@ -98,32 +116,28 @@
             <span class="badge" id="modelBadge">Model: —</span>
           </div>
 
-          <div style="font-weight:900; font-size: 18px;" id="predictionText">—</div>
+          <div class="result-summary">
+            <div style="font-weight:900; font-size: 18px;" id="predictionText">—</div>
+            <div class="result-note" id="resultNote">—</div>
+          </div>
 
-          <div class="outcomes">
-            <div class="outcome">
-              <div class="k">Recall</div>
-              <div class="v" id="recallText">—%</div>
+          <div class="probability-panel" id="probabilityPanel">
+            <div class="probability-label">Probability</div>
+            <div class="progress">
+              <div class="bar" id="probabilityBar" style="width:0%"></div>
             </div>
-            <div class="outcome">
-              <div class="k">Sensitivity (TPR)</div>
-              <div class="v" id="sensText">—%</div>
-            </div>
-            <div class="outcome">
-              <div class="k">Specificity (TNR)</div>
-              <div class="v" id="specText">—%</div>
-            </div>
-            <div class="outcome">
-              <div class="k">Precision (PPV)</div>
-              <div class="v" id="precText">—%</div>
-            </div>
-            <div class="outcome">
-              <div class="k">F1-score</div>
-              <div class="v" id="f1Text">—%</div>
-            </div>
-            <div class="outcome">
-              <div class="k">NPV</div>
-              <div class="v" id="npvText">—%</div>
+            <div class="probability-value" id="probabilityValue">—</div>
+          </div>
+
+          <div class="threshold-panel" id="thresholdPanel">
+            <div class="threshold-title">Threshold sweep</div>
+            <div class="threshold-chart" id="thresholdChart">
+              <div class="threshold-plot" id="thresholdPlot"></div>
+              <div class="threshold-axis">
+                <div class="axis-line"></div>
+                <div class="axis-labels" id="thresholdAxisLabels"></div>
+                <div class="axis-name">Threshold</div>
+              </div>
             </div>
           </div>
 

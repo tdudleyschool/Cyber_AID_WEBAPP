@@ -68,8 +68,7 @@ def health():
 
 @app.post("/predict")
 async def predict(
-    file: UploadFile = File(...),
-    threshold: float = Query(0.5, ge=0.0, le=1.0)
+    file: UploadFile = File(...)
 ):
     if logreg_pipeline is None:
         raise HTTPException(status_code=500, detail="Model not loaded.")
@@ -94,18 +93,73 @@ async def predict(
         # Assuming class 1 = Malignant, class 0 = Benign
         malignant_prob = float(probs[1])
 
-        pred = 1 if malignant_prob >= threshold else 0
+        pred = 1 if malignant_prob >= 0.5 else 0
+        probability = malignant_prob if pred == 1 else float(probs[0])
         label = "Malignant" if pred == 1 else "Benign"
 
         return {
-            "filename": file.filename,
-            "threshold": threshold,
+            "output": pred,
             "prediction": label,
-            "malignant_probability": malignant_prob,
-            "benign_probability": float(probs[0])
+            "probability": probability
         }
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@app.post("/predict_threshold")
+async def predict(
+    file: UploadFile = File(...),
+    threshold: float = Query(0.5, ge=0.0, le=1.0)
+):
+    if logreg_pipeline is None:
+        raise HTTPException(status_code=500, detail="Model not loaded.")
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Please upload a valid image file.")
+
+    try:
+        image_bytes = await file.read()
+        features = preprocess_image(image_bytes)
+
+        model = logreg_pipeline["model"]
+
+        if not hasattr(model, "predict_proba"):
+            raise HTTPException(
+                status_code=500,
+                detail="This model does not support probability prediction."
+            )
+
+        # --- probability ---
+        probs = model.predict_proba(features)[0]
+        malignant_prob = float(probs[1])
+        benign_prob = float(probs[0])
+
+        # --- single threshold prediction ---
+        pred = int(malignant_prob >= threshold)
+        label = "Malignant" if pred == 1 else "Benign"
+
+        # --- threshold sweep ---
+        thresholds = np.arange(0.1, 1.0, 0.1)
+
+        sweep = []
+        for t in thresholds:
+            t = float(t)
+            p = int(malignant_prob >= t)
+
+            sweep.append({
+                "threshold": t,
+                "prediction": p,
+                "label": "Malignant" if p == 1 else "Benign"
+            })
+
+        return {
+            "output": pred,
+            "prediction": label,
+            "threshold": threshold,
+            "threshold_sweep": sweep
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

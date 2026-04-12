@@ -197,32 +197,318 @@
 
     .hidden-input{ display:none; }
 
-    .preview{
-      width: 100%;
-      max-width: 420px;
-      border-radius: 14px;
+    .model-info{
       border: 1px solid var(--border);
-      background: #fff;
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 12px 14px;
+      margin-top: 14px;
+    }
+    .model-meta{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      font-weight: 700;
+    }
+    .model-meta .label{
+      color: var(--muted);
+    }
+    .model-description{
+      margin: 8px 0 0;
+      color: var(--muted);
+      min-height: 1.25rem;
+      font-size: 13px;
+    }
+
+    .upload{
+      border: 2px dashed #cbd5e1;
+      border-radius: 16px;
+      padding: 18px;
+      display:flex;
+      flex-direction: column;
+      align-items:center;
+      justify-content:center;
+      gap: 10px;
+      text-align:center;
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      transition: border-color .15s ease, transform .15s ease;
+      min-height: 260px;
+      position: relative;
       overflow: hidden;
-      margin-top: 10px;
+    }
+    .upload.upload-filled{
+      border-color: var(--primary);
+      background: linear-gradient(180deg, rgba(248, 250, 252, 0.85), rgba(239, 246, 255, 0.85));
+    }
+    .upload.upload-filled .big-icon{
+      opacity: 0;
+      visibility: hidden;
+    }
+    .upload.upload-filled .upload-text{
+      opacity: 0.25;
+    }
+    .upload.upload-filled .row button{
+      opacity: 0.45;
+    }
+    .upload.upload-filled .row button:hover{
+      opacity: 1;
+    }
+    .upload .upload-text,
+    .upload .big-icon,
+    .upload .row{
+      position: relative;
+      z-index: 2;
+    }
+    .upload .upload-preview{
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      overflow: hidden;
       display:none;
+      z-index: 1;
+      background: #000;
     }
-    .preview img{
+    .upload .upload-preview img{
       width: 100%;
+      height: 100%;
       display:block;
-      max-height: 220px;
       object-fit: contain;
-      background: #0b1220;
+      filter: brightness(0.75);
     }
-    .preview .meta{
+    .upload .upload-preview .meta{
+      position: absolute;
+      bottom: 14px;
+      left: 14px;
+      right: 14px;
       padding: 10px 12px;
       font-size: 12px;
       color: var(--muted);
       display:flex;
       justify-content: space-between;
       gap: 10px;
-      border-top: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.86);
+      border: 1px solid rgba(226,232,240,0.75);
+      z-index: 3;
+    }
+    .upload .upload-preview .meta span{
+      color: var(--text);
+    }
+
+    .controls-row{
+      display:flex;
+      flex-wrap: wrap;
+      align-items:center;
+      justify-content:flex-start;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .toggle-switch{
+      position: relative;
+      display: inline-grid;
+      width: 44px;
+      height: 24px;
+    }
+    .toggle-switch input{
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .slider-switch{
+      width: 100%;
+      height: 100%;
+      border-radius: 999px;
+      background: #d9e2ef;
+      transition: background .2s ease;
+      position: relative;
+    }
+    .slider-switch::after{
+      content: '';
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: white;
+      top: 3px;
+      left: 3px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      transition: left .2s ease;
+    }
+    .toggle-switch input:checked + .slider-switch{
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    }
+    .toggle-switch input:checked + .slider-switch::after{
+      left: calc(100% - 21px);
+    }
+    .toggle-label{
+      font-weight: 700;
+      color: var(--text);
+    }
+    .threshold-control{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .threshold-control input{
+      width: 180px;
+    }
+    .threshold-control span{
+      min-width: 36px;
+      text-align:right;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .result-summary{
+      display:flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .result-note{
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .probability-panel,
+    .threshold-panel{
+      border: 1px solid var(--border);
       background: #fff;
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+      display:none;
+    }
+    .probability-label{
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .probability-value{
+      margin-top: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .threshold-title{
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+    .threshold-chart{
+      width: 100%;
+      position: relative;
+    }
+    .threshold-plot{
+      position: relative;
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      min-height: 120px;
+      justify-content: space-between;
+      align-items: flex-end;
+      overflow: hidden;
+      padding-bottom: 18px;
+    }
+    .threshold-cell{
+      flex: 1 1 0;
+      min-width: 0;
+      height: 56px;
+      border-radius: 14px;
+      padding: 8px 6px;
+      background: #f8fafc;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text);
+      border: 1px solid #e2e8f0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    .threshold-point{
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1;
+    }
+    .threshold-value{
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .threshold-cell.benign{
+      background: rgba(91,124,250,0.18);
+      border-color: rgba(91,124,250,0.3);
+    }
+    .threshold-cell.malignant{
+      background: rgba(240, 68, 68, 0.18);
+      border-color: rgba(240, 68, 68, 0.35);
+    }
+    .threshold-marker{
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 0;
+      border-left: 2px dashed rgba(91,124,250,0.85);
+      transform: translateX(-50%);
+      z-index: 3;
+    }
+    .threshold-axis{
+      position: relative;
+      margin-top: 14px;
+      padding-top: 16px;
+    }
+    .axis-line{
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 10px;
+      height: 1px;
+      background: rgba(100, 116, 139, 0.35);
+    }
+    .axis-labels{
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+      position: relative;
+      z-index: 1;
+      margin-top: 16px;
+    }
+    .axis-labels span{
+      flex: 1 1 0;
+      min-width: 0;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      position: relative;
+    }
+    .axis-labels span::before{
+      content: '';
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      width: 1px;
+      height: 14px;
+      background: rgba(100, 116, 139, 0.35);
+      transform: translateX(-50%);
+    }
+    .axis-name{
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    .threshold-legend{
+      display:flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--muted);
     }
 
     .results-placeholder{

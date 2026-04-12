@@ -8,9 +8,12 @@ import torch.nn as nn
 from torchvision import transforms
 from PIL import Image
 from io import BytesIO
+import numpy as np
 
-from fastapi import FastAPI, File, UploadFile
+
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+
 
 # ========================= Settings =========================
 
@@ -88,26 +91,80 @@ def health():
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded.")
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Please upload a valid image file.")
+
     try:
-        # Read uploaded image
         contents = await file.read()
         image = Image.open(BytesIO(contents)).convert("L")
 
-        # Preprocess (IDENTICAL to training script)
         image_tensor = transform(image).unsqueeze(0).to(device)
 
-        # Predict (IDENTICAL logic)
         with torch.no_grad():
             output = model(image_tensor)
             prob = torch.sigmoid(output).item()
-            pred = 1 if prob > 0.5 else 0
 
-        label_str = "Malignant" if pred == 1 else "Benign"
+        pred = 1 if prob >= 0.5 else 0
+        probability = prob if pred == 1 else (1 - prob)
+        label = "Malignant" if pred == 1 else "Benign"
 
         return {
-            "prediction": label_str,
-            "probability": prob
+            "output": pred,
+            "prediction": label,
+            "probability": probability
         }
 
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@app.post("/predict_threshold")
+async def predict_threshold(
+    file: UploadFile = File(...),
+    threshold: float = Query(0.5, ge=0.0, le=1.0)
+):
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded.")
+
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Please upload a valid image file.")
+
+    try:
+        contents = await file.read()
+        image = Image.open(BytesIO(contents)).convert("L")
+
+        image_tensor = transform(image).unsqueeze(0).to(device)
+
+        with torch.no_grad():
+            output = model(image_tensor)
+            prob = torch.sigmoid(output).item()
+
+        # --- single threshold prediction ---
+        pred = int(prob >= threshold)
+        label = "Malignant" if pred == 1 else "Benign"
+
+        # --- threshold sweep ---
+        thresholds = np.arange(0.1, 1.0, 0.1)
+
+        sweep = []
+        for t in thresholds:
+            t = float(t)
+            p = int(prob >= t)
+
+            sweep.append({
+                "threshold": t,
+                "prediction": p,
+                "label": "Malignant" if p == 1 else "Benign"
+            })
+
+        return {
+            "output": pred,
+            "prediction": label,
+            "threshold": threshold,
+            "threshold_sweep": sweep
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
