@@ -59,13 +59,13 @@ function normalizeUrl(value) {
       console.warn('Failed to load env-config.js:', err);
     }
 
-    LOAD_BALANCER_URL = normalizeUrl(env.LB_URL || window.location.origin);
-    SERVICE_LR_1_URL = normalizeUrl(env.SERVICE_LR_1 || '');
-    SERVICE_LR_2_URL = normalizeUrl(env.SERVICE_LR_2 || '');
-    SERVICE_LR_3_URL = normalizeUrl(env.SERVICE_LR_3 || '');
-    SERVICE_CNN_1_URL = normalizeUrl(env.SERVICE_CNN_1 || '');
-    SERVICE_CNN_2_URL = normalizeUrl(env.SERVICE_CNN_2 || '');
-    SERVICE_CNN_3_URL = normalizeUrl(env.SERVICE_CNN_3 || '');
+    LOAD_BALANCER_URL = normalizeUrl(env.LB_URL || 'https://service-load-balancer-cyber-aid.onrender.com/');
+    SERVICE_LR_1_URL = normalizeUrl(env.SERVICE_LR_1 || 'https://service-lr-1.onrender.com/');
+    SERVICE_LR_2_URL = normalizeUrl(env.SERVICE_LR_2 || 'https://service-lr-2.onrender.com/');
+    SERVICE_LR_3_URL = normalizeUrl(env.SERVICE_LR_3 || 'https://service-lr-3.onrender.com/');
+    SERVICE_CNN_1_URL = normalizeUrl(env.SERVICE_CNN_1 || 'https://service-cnn-1.onrender.com/');
+    SERVICE_CNN_2_URL = normalizeUrl(env.SERVICE_CNN_2 || 'https://service-cnn-2.onrender.com/');
+    SERVICE_CNN_3_URL = normalizeUrl(env.SERVICE_CNN_3 || 'https://service-cnn-3.onrender.com/');
 
     console.log('Frontend service URLs:', {
       LOAD_BALANCER_URL,
