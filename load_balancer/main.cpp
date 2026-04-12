@@ -307,6 +307,11 @@ static bool proxy_to_backend(const std::string& backend_base,
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, curlHeaderCallback);
   curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_content_type);
   curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+  curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "");
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
 
@@ -524,7 +529,7 @@ int main() {
     if (lower.rfind("http://", 0) == 0 || lower.rfind("https://", 0) == 0) {
       return url;
     }
-    return std::string("http://") + url;
+    return std::string("https://") + url;
   };
 
   auto add_url_if_valid = [&](std::vector<std::string>& list, const char* env_name) {
