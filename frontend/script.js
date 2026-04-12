@@ -93,10 +93,12 @@ function normalizeUrl(value) {
   const thresholdControl = document.getElementById('thresholdControl');
   const thresholdRange = document.getElementById('thresholdRange');
   const thresholdValue = document.getElementById('thresholdValue');
+  const thresholdDescription = document.getElementById('thresholdDescription');
 
   const modelSelect = document.getElementById('model');
   const accuracyText = document.getElementById('accuracyText');
   const modelDescription = document.getElementById('modelDescription');
+  const recommendedThresholds = document.getElementById('recommendedThresholds');
 
   const resultsPlaceholder = document.getElementById('resultsPlaceholder');
   const resultsCard = document.getElementById('resultsCard');
@@ -116,7 +118,7 @@ function normalizeUrl(value) {
   const footerNote = document.getElementById('footerNote');
 
   const SERVICE_HEALTH_ENDPOINT = '/health';
-  const STATUS_CHECK_INTERVAL_MS = 30000;
+  const STATUS_CHECK_INTERVAL_MS = 420000;
   const MAX_STARTUP_CHECKS = 8;
   let servicesReady = false;
   let initialServiceCheck = true;
@@ -234,8 +236,16 @@ function normalizeUrl(value) {
     return false;
   }
   const modelInfo = {
-    cnn: { accuracy: '94%', description: '' },
-    logreg: { accuracy: '88%', description: '' },
+    cnn: {
+      accuracy: '94%',
+      description: 'Recommended model based on real-world distributions and generalizability test.',
+      recommended: '0.5 (Normal), 0.1 (Early Detection), 0.7 (Lowest Risk)',
+    },
+    logreg: {
+      accuracy: '88%',
+      description: 'Secondary model for comparison and validation. Performed better in early detection scenarios.',
+      recommended: '0.5 (Normal), 0.1(Early Detection), 0.1 (Lowest Risk)',
+    },
   };
 
   function generateRequestId() {
@@ -254,9 +264,10 @@ function normalizeUrl(value) {
   }
 
   function updateModelInfo() {
-    const info = modelInfo[modelSelect.value] || { accuracy: '—', description: '' };
+    const info = modelInfo[modelSelect.value] || { accuracy: '—', description: '', recommended: '—' };
     accuracyText.textContent = info.accuracy;
     modelDescription.textContent = info.description;
+    recommendedThresholds.textContent = info.recommended;
   }
 
   function setPreview(file) {
@@ -344,6 +355,7 @@ function normalizeUrl(value) {
     const enabled = thresholdToggle.checked;
     thresholdRange.disabled = !enabled;
     thresholdControl.style.opacity = enabled ? '1' : '0.5';
+    thresholdDescription.style.display = enabled ? 'block' : 'none';
     thresholdValue.textContent = thresholdRange.value;
   });
 
@@ -355,6 +367,7 @@ function normalizeUrl(value) {
   thresholdToggle.checked = false;
   thresholdRange.disabled = true;
   thresholdControl.style.opacity = '0.5';
+  thresholdDescription.style.display = 'none';
   runBtn.disabled = true;
 
   (async () => {

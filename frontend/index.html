@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Analysis UI</title>
+  <title>Neuro Insight</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -13,7 +13,7 @@
     <div class="brand">
       <div class="logo">🧠</div>
       <div>
-        <h1>cyber-AID</h1>
+        <h1>Neuro Insight</h1>
         <p>Comparative Analysis and Delivery of Models for Brain Imaging</p>
       </div>
     </div>
@@ -41,11 +41,18 @@
         </div>
 
         <div class="model-info">
-          <div class="model-meta">
+          <p class="model-row">
+            <span class="label">Description:</span>
+            <span id="modelDescription" class="model-value">—</span>
+          </p>
+          <p class="model-row">
             <span class="label">Accuracy:</span>
-            <span id="accuracyText">94%</span>
-          </div>
-          <p class="model-description" id="modelDescription"></p>
+            <span id="accuracyText" class="model-value">94%</span>
+          </p>
+          <p class="model-row">
+            <span class="label">Recommended Thresholds:</span>
+            <span id="recommendedThresholds" class="model-value">0.5 (Normal), 0.2 (Early Detection), 0.7 (Lowest Risk)</span>
+          </p>
         </div>
       </div>
 
@@ -90,9 +97,9 @@
             <input type="range" id="thresholdRange" min="0.1" max="0.9" step="0.1" value="0.5" />
             <span id="thresholdValue">0.5</span>
           </div>
-
           <button class="btn-primary" id="runBtn" type="button">Run Analysis</button>
         </div>
+        <div class="threshold-description" id="thresholdDescription">Higher thresholds make the model more conservative and reduce false positives. Lower thresholds increase sensitivity and catch more possible abnormalities.</div>
       </div>
     </section>
 
