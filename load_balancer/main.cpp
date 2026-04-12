@@ -63,32 +63,23 @@ static size_t curlHeaderCallback(char* buffer, size_t size, size_t nitems, void*
   size_t total = size * nitems;
   std::string header(buffer, total);
   auto* content_type = static_cast<std::string*>(userdata);
+  const std::string prefix = "content-type:";
 
   std::string lower_header = to_lower(header);
-
-    if (lower_header.rfind("content-type:", 0) == 0) {
+  if (lower_header.rfind(prefix, 0) == 0) {
     auto colon = header.find(':');
     if (colon != std::string::npos) {
-
-        std::string value = header.substr(colon + 1);
-
-        // trim CRLF + spaces (right side)
-        while (!value.empty() &&
-            (value.back() == '\r' || value.back() == '\n' || value.back() == ' ')) {
+      std::string value = header.substr(colon + 1);
+      while (!value.empty() && (value.back() == '\r' || value.back() == '\n' || value.back() == ' ')) {
         value.pop_back();
-        }
-
-        // trim left side spaces
-        size_t start = 0;
-        while (start < value.size() &&
-            std::isspace(static_cast<unsigned char>(value[start]))) {
+      }
+      size_t start = 0;
+      while (start < value.size() && std::isspace(static_cast<unsigned char>(value[start]))) {
         start++;
-        }
-
-        // write result safely
-        *static_cast<std::string*>(userdata) = value.substr(start);
+      }
+      content_type->assign(value.substr(start));
     }
-    }
+  }
 
   return total;
 }
@@ -305,10 +296,6 @@ static bool proxy_to_backend(const std::string& backend_base,
     return false;
   }
 
-  curl_easy_setopt(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-  curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1L);
-  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-
   std::string url = backend_base + path;
   if (!query_string.empty()) {
     url += "?" + query_string;
@@ -324,37 +311,22 @@ static bool proxy_to_backend(const std::string& backend_base,
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
 
   struct curl_slist* header_list = nullptr;
-
-  bool has_content_type = false;
-
   for (const auto& [key, value] : headers) {
     if (key == "host" || key == "content-length" || key == "connection") {
-        continue;
-  }
-
-  if (key == "content-type") {
-        has_content_type = true;
-  }
-
-  std::string h = key + ": " + value;
+      continue;
+    }
+    std::string h = key + ": " + value;
     header_list = curl_slist_append(header_list, h.c_str());
   }
-
-    // IMPORTANT: preserve multipart upload type if missing
-  if (!has_content_type && method == "POST") {
-    header_list = curl_slist_append(header_list, "Content-Type: multipart/form-data");
-  }
-
   if (!header_list) {
     header_list = curl_slist_append(header_list, "Connection: close");
   }
-
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
 
   if (method == "POST") {
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.data());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, body.size());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(body.size()));
   } else if (method == "GET") {
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
   } else {
