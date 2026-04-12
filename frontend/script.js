@@ -1,5 +1,5 @@
   // Runtime-rendered env values are injected into env-config.js by the Docker CMD.
-// If env-config.js is unavailable, the frontend falls back to the current origin.
+// If env-config.js is unavailable or blocked by MIME, fetch it directly and parse the values.
 function normalizeUrl(value) {
     if (!value || typeof value !== 'string') {
       return '';
@@ -22,23 +22,61 @@ function normalizeUrl(value) {
     return `${window.location.protocol}//${url}`;
   }
 
-  const LOAD_BALANCER_URL = normalizeUrl(window.LB_URL || window.location.origin);
-  const SERVICE_LR_1_URL = normalizeUrl(window.SERVICE_LR_1 || '');
-  const SERVICE_LR_2_URL = normalizeUrl(window.SERVICE_LR_2 || '');
-  const SERVICE_LR_3_URL = normalizeUrl(window.SERVICE_LR_3 || '');
-  const SERVICE_CNN_1_URL = normalizeUrl(window.SERVICE_CNN_1 || '');
-  const SERVICE_CNN_2_URL = normalizeUrl(window.SERVICE_CNN_2 || '');
-  const SERVICE_CNN_3_URL = normalizeUrl(window.SERVICE_CNN_3 || '');
+  let LOAD_BALANCER_URL = '';
+  let SERVICE_LR_1_URL = '';
+  let SERVICE_LR_2_URL = '';
+  let SERVICE_LR_3_URL = '';
+  let SERVICE_CNN_1_URL = '';
+  let SERVICE_CNN_2_URL = '';
+  let SERVICE_CNN_3_URL = '';
 
-  console.log('Frontend service URLs:', {
-    LOAD_BALANCER_URL,
-    SERVICE_CNN_1_URL,
-    SERVICE_CNN_2_URL,
-    SERVICE_CNN_3_URL,
-    SERVICE_LR_1_URL,
-    SERVICE_LR_2_URL,
-    SERVICE_LR_3_URL,
-  });
+  async function loadEnvConfig() {
+    const env = {
+      LB_URL: '',
+      SERVICE_LR_1: '',
+      SERVICE_LR_2: '',
+      SERVICE_LR_3: '',
+      SERVICE_CNN_1: '',
+      SERVICE_CNN_2: '',
+      SERVICE_CNN_3: '',
+    };
+
+    try {
+      const response = await fetch('env-config.js', { cache: 'no-store' });
+      if (response.ok) {
+        const text = await response.text();
+        const regex = /window\.([A-Z0-9_]+)\s*=\s*"([^"]*)";/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+          if (env.hasOwnProperty(match[1])) {
+            env[match[1]] = match[2] || '';
+          }
+        }
+      } else {
+        console.warn('Could not fetch env-config.js:', response.status, response.statusText);
+      }
+    } catch (err) {
+      console.warn('Failed to load env-config.js:', err);
+    }
+
+    LOAD_BALANCER_URL = normalizeUrl(env.LB_URL || window.location.origin);
+    SERVICE_LR_1_URL = normalizeUrl(env.SERVICE_LR_1 || '');
+    SERVICE_LR_2_URL = normalizeUrl(env.SERVICE_LR_2 || '');
+    SERVICE_LR_3_URL = normalizeUrl(env.SERVICE_LR_3 || '');
+    SERVICE_CNN_1_URL = normalizeUrl(env.SERVICE_CNN_1 || '');
+    SERVICE_CNN_2_URL = normalizeUrl(env.SERVICE_CNN_2 || '');
+    SERVICE_CNN_3_URL = normalizeUrl(env.SERVICE_CNN_3 || '');
+
+    console.log('Frontend service URLs:', {
+      LOAD_BALANCER_URL,
+      SERVICE_CNN_1_URL,
+      SERVICE_CNN_2_URL,
+      SERVICE_CNN_3_URL,
+      SERVICE_LR_1_URL,
+      SERVICE_LR_2_URL,
+      SERVICE_LR_3_URL,
+    });
+  }
 
   const fileInput = document.getElementById('fileInput');
   const dropZone = document.getElementById('dropZone');
@@ -312,8 +350,11 @@ function normalizeUrl(value) {
   thresholdControl.style.opacity = '0.5';
   runBtn.disabled = true;
 
-  ensureServicesReady();
-  setInterval(ensureServicesReady, STATUS_CHECK_INTERVAL_MS);
+  (async () => {
+    await loadEnvConfig();
+    await ensureServicesReady();
+    setInterval(ensureServicesReady, STATUS_CHECK_INTERVAL_MS);
+  })();
 
   async function sendImage() {
     if (!currentFile) {
