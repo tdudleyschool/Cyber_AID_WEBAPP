@@ -1,5 +1,19 @@
-  // Load balancer URL for both CNN and LR requests.
-  const LOAD_BALANCER_URL = "http://127.0.0.1:9000";
+  // Runtime-rendered env values are injected into env-config.js by the Docker CMD.
+// If env-config.js is unavailable, the frontend falls back to the current origin.
+function normalizeUrl(value) {
+    if (!value || typeof value !== 'string') {
+      return '';
+    }
+    return value.trim().replace(/\/+$/, '');
+  }
+
+  const LOAD_BALANCER_URL = normalizeUrl(window.LB_URL || window.location.origin);
+  const SERVICE_LR_1_URL = normalizeUrl(window.SERVICE_LR_1 || '');
+  const SERVICE_LR_2_URL = normalizeUrl(window.SERVICE_LR_2 || '');
+  const SERVICE_LR_3_URL = normalizeUrl(window.SERVICE_LR_3 || '');
+  const SERVICE_CNN_1_URL = normalizeUrl(window.SERVICE_CNN_1 || '');
+  const SERVICE_CNN_2_URL = normalizeUrl(window.SERVICE_CNN_2 || '');
+  const SERVICE_CNN_3_URL = normalizeUrl(window.SERVICE_CNN_3 || '');
 
   const fileInput = document.getElementById('fileInput');
   const dropZone = document.getElementById('dropZone');
@@ -38,8 +52,117 @@
   const timeStamp = document.getElementById('timeStamp');
   const footerNote = document.getElementById('footerNote');
 
+  const SERVICE_HEALTH_ENDPOINT = '/health';
+  const STATUS_CHECK_INTERVAL_MS = 30000;
+  const MAX_STARTUP_CHECKS = 8;
+  let servicesReady = false;
   let currentFile = null;
   let currentRequestId = null;
+
+  const loadingOverlay = document.createElement('div');
+  loadingOverlay.className = 'loading-overlay hidden';
+  loadingOverlay.innerHTML = `
+    <div class="loading-card">
+      <div class="loading-title">Waking up backend services</div>
+      <div class="loading-description">The site is verifying that your Render backend services are active. This may take a few seconds while the services warm up.</div>
+      <div class="loading-status" id="loadingStatusText">Checking service availability…</div>
+    </div>
+  `;
+  document.body.appendChild(loadingOverlay);
+  const loadingStatusText = loadingOverlay.querySelector('#loadingStatusText');
+
+  function showLoading(message) {
+    if (loadingStatusText) {
+      loadingStatusText.textContent = message;
+    }
+    loadingOverlay.classList.remove('hidden');
+  }
+
+  function hideLoading() {
+    loadingOverlay.classList.add('hidden');
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function fetchWithTimeout(url, options = {}, timeout = 10000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timer);
+      return response;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function checkServiceHealth(baseUrl) {
+    if (!baseUrl) {
+      return false;
+    }
+    try {
+      const response = await fetchWithTimeout(`${baseUrl}${SERVICE_HEALTH_ENDPOINT}`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      }, 12000);
+      return response.ok;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  async function verifyServicesOnline() {
+    const serviceEntries = [
+      { name: 'Load Balancer', url: LOAD_BALANCER_URL },
+      { name: 'CNN 1', url: SERVICE_CNN_1_URL },
+      { name: 'CNN 2', url: SERVICE_CNN_2_URL },
+      { name: 'CNN 3', url: SERVICE_CNN_3_URL },
+      { name: 'LR 1', url: SERVICE_LR_1_URL },
+      { name: 'LR 2', url: SERVICE_LR_2_URL },
+      { name: 'LR 3', url: SERVICE_LR_3_URL },
+    ].filter((entry) => entry.url);
+
+    if (serviceEntries.length === 0) {
+      return false;
+    }
+
+    const results = await Promise.all(serviceEntries.map(async (entry) => {
+      const healthy = await checkServiceHealth(entry.url);
+      return { name: entry.name, healthy };
+    }));
+
+    const unhealthy = results.filter((entry) => !entry.healthy);
+    if (unhealthy.length > 0) {
+      const names = unhealthy.map((entry) => entry.name).join(', ');
+      showLoading(`Waiting for services to come online: ${names}`);
+      return false;
+    }
+
+    hideLoading();
+    return true;
+  }
+
+  async function ensureServicesReady() {
+    showLoading('Waking up backend services. This may take a few seconds...');
+    runBtn.disabled = true;
+
+    for (let attempt = 1; attempt <= MAX_STARTUP_CHECKS; attempt += 1) {
+      loadingStatusText.textContent = `Checking service status (attempt ${attempt}/${MAX_STARTUP_CHECKS})...`;
+      const healthy = await verifyServicesOnline();
+      if (healthy) {
+        servicesReady = true;
+        runBtn.disabled = false;
+        return true;
+      }
+      await sleep(2500);
+    }
+
+    showLoading('One or more services are still unavailable. Please wait a moment and try again.');
+    runBtn.disabled = false;
+    return false;
+  }
   const modelInfo = {
     cnn: { accuracy: '94%', description: '' },
     logreg: { accuracy: '88%', description: '' },
@@ -162,13 +285,26 @@
   thresholdToggle.checked = false;
   thresholdRange.disabled = true;
   thresholdControl.style.opacity = '0.5';
+  runBtn.disabled = true;
 
-  // ✅ REAL BACKEND CALL
+  ensureServicesReady();
+  setInterval(ensureServicesReady, STATUS_CHECK_INTERVAL_MS);
 
   async function sendImage() {
     if (!currentFile) {
       alert('Upload an image first.');
       return;
+    }
+
+    if (!servicesReady) {
+      const ready = await ensureServicesReady();
+      if (!ready) {
+        predictionText.textContent = 'Backend services are not ready yet.';
+        resultNote.textContent = 'Please wait while the backend finishes starting.';
+        footerNote.textContent = 'Service unavailable';
+        timeStamp.textContent = new Date().toLocaleString();
+        return;
+      }
     }
 
     resultsPlaceholder.style.display = 'none';

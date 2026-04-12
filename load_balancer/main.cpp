@@ -506,6 +506,9 @@ static void handle_client(int client_fd) {
 int main() {
   signal(SIGPIPE, SIG_IGN);
   const char* port_env = std::getenv("LB_PORT");
+  if (!port_env || port_env[0] == '\0') {
+    port_env = std::getenv("PORT");
+  }
   int port = 9000;
   if (port_env) {
     try {
@@ -515,8 +518,45 @@ int main() {
     }
   }
 
-  auto cnn_urls = read_backend_list("LB_CNN_URLS", {"http://127.0.0.1:8000", "http://127.0.0.1:8002", "http://127.0.0.1:8004"});
-  auto lr_urls = read_backend_list("LB_LR_URLS", {"http://127.0.0.1:8001", "http://127.0.0.1:8003", "http://127.0.0.1:8005"});
+  auto ensure_scheme = [](const std::string& url) {
+    std::string lower = to_lower(url);
+    if (lower.rfind("http://", 0) == 0 || lower.rfind("https://", 0) == 0) {
+      return url;
+    }
+    return std::string("https://") + url;
+  };
+
+  auto add_url_if_valid = [&](std::vector<std::string>& list, const char* env_name) {
+    const char* env_value = std::getenv(env_name);
+    if (env_value && env_value[0] != '\0') {
+      std::string url = trim(std::string(env_value));
+      if (!url.empty()) {
+        list.push_back(ensure_scheme(url));
+      }
+    }
+  };
+
+  std::vector<std::string> cnn_urls = read_backend_list("LB_CNN_URLS", {});
+  std::vector<std::string> lr_urls = read_backend_list("LB_LR_URLS", {});
+
+  if (cnn_urls.empty()) {
+    add_url_if_valid(cnn_urls, "SERVICE_CNN_1");
+    add_url_if_valid(cnn_urls, "SERVICE_CNN_2");
+    add_url_if_valid(cnn_urls, "SERVICE_CNN_3");
+  }
+
+  if (lr_urls.empty()) {
+    add_url_if_valid(lr_urls, "SERVICE_LR_1");
+    add_url_if_valid(lr_urls, "SERVICE_LR_2");
+    add_url_if_valid(lr_urls, "SERVICE_LR_3");
+  }
+
+  if (cnn_urls.empty()) {
+    cnn_urls = {"http://127.0.0.1:8000", "http://127.0.0.1:8002", "http://127.0.0.1:8004"};
+  }
+  if (lr_urls.empty()) {
+    lr_urls = {"http://127.0.0.1:8001", "http://127.0.0.1:8003", "http://127.0.0.1:8005"};
+  }
 
   for (const auto& url : cnn_urls) {
     cnn_backends.emplace_back(url);
