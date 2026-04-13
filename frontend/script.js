@@ -356,6 +356,9 @@ function normalizeUrl(value) {
     thresholdRange.disabled = !enabled;
     thresholdControl.style.opacity = enabled ? '1' : '0.5';
     thresholdDescription.style.display = enabled ? 'block' : 'none';
+    if (!enabled) {
+      thresholdRange.value = '0.5';
+    }
     thresholdValue.textContent = thresholdRange.value;
   });
 
@@ -403,7 +406,7 @@ function normalizeUrl(value) {
 
     modelBadge.textContent = `Model: ${modelLabel}`;
     predictionText.textContent = 'Analyzing…';
-    resultNote.textContent = useThreshold ? `Threshold mode: ${threshold}` : 'Standard analysis';
+    resultNote.textContent = useThreshold ? `Threshold mode: ${threshold}` : '';
     probabilityPanel.style.display = 'none';
     thresholdPanel.style.display = 'none';
     footerNote.textContent = 'Calling backend…';
@@ -429,13 +432,12 @@ function normalizeUrl(value) {
       if (!resp.ok) {
         const msg = data?.detail || data?.error || `Request failed (${resp.status})`;
         predictionText.textContent = `Error: ${msg}`;
-        resultNote.textContent = `Request ID: ${currentRequestId}`;
+        resultNote.textContent = '';
         footerNote.textContent = 'Backend error';
         timeStamp.textContent = new Date().toLocaleString();
         return;
       }
 
-      const responseRequestId = data?.request_id || currentRequestId;
       predictionText.textContent = `Prediction: ${data.prediction || '—'}`;
 
       if (useThreshold) {
@@ -494,17 +496,17 @@ function normalizeUrl(value) {
           });
         }
 
-        resultNote.textContent = `Threshold selected: ${threshold.toFixed(1)} • req ${responseRequestId}`;
+        resultNote.textContent = `Threshold selected: ${threshold.toFixed(1)}`;
       } else {
         probabilityPanel.style.display = 'block';
         const probability = typeof data.probability === 'number' ? data.probability : 0;
         const percentage = Math.round(probability * 10000) / 100;
         probabilityBar.style.width = `${percentage}%`;
         probabilityValue.textContent = `Probability: ${percentage.toFixed(2)}%`;
-        resultNote.textContent = `Standard model prediction • req ${responseRequestId}`;
+        resultNote.textContent = '';
       }
 
-      footerNote.textContent = `Backend response received • ${responseRequestId}`;
+      footerNote.textContent = 'Backend response received';
       timeStamp.textContent = new Date().toLocaleString();
     } catch (err) {
       console.error(err);
