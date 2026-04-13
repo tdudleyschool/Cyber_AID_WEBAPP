@@ -8,9 +8,12 @@
 
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <climits>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
+#include <condition_variable>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -22,18 +25,57 @@
 struct Backend {
   std::string url;
   std::atomic<int> active_requests{0};
+  std::atomic<int> consecutive_failures{0};
+  std::atomic<long long> circuit_open_until_ms{0};
+  int max_concurrency = 8;
 
   Backend() = default;
-  Backend(const std::string& u) : url(u), active_requests(0) {}
+  Backend(const std::string& u, int concurrency_limit) : url(u), active_requests(0), consecutive_failures(0), circuit_open_until_ms(0), max_concurrency(concurrency_limit) {}
   Backend(const Backend&) = delete;
   Backend& operator=(const Backend&) = delete;
-  Backend(Backend&& other) noexcept : url(std::move(other.url)), active_requests(other.active_requests.load()) {}
+  Backend(Backend&& other) noexcept
+      : url(std::move(other.url)),
+        active_requests(other.active_requests.load()),
+        consecutive_failures(other.consecutive_failures.load()),
+        circuit_open_until_ms(other.circuit_open_until_ms.load()),
+        max_concurrency(other.max_concurrency) {}
   Backend& operator=(Backend&& other) noexcept {
     if (this != &other) {
       url = std::move(other.url);
       active_requests.store(other.active_requests.load());
+      consecutive_failures.store(other.consecutive_failures.load());
+      circuit_open_until_ms.store(other.circuit_open_until_ms.load());
+      max_concurrency = other.max_concurrency;
     }
     return *this;
+  }
+
+  static long long now_ms() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+  }
+
+  bool is_tripped() const {
+    return circuit_open_until_ms.load(std::memory_order_relaxed) > now_ms();
+  }
+
+  bool can_accept() const {
+    if (is_tripped()) {
+      return false;
+    }
+    return active_requests.load(std::memory_order_relaxed) < max_concurrency;
+  }
+
+  void note_backend_result(bool success) {
+    if (success) {
+      consecutive_failures.store(0, std::memory_order_relaxed);
+      return;
+    }
+    int failures = consecutive_failures.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (failures >= 3) {
+      circuit_open_until_ms.store(now_ms() + 10000, std::memory_order_relaxed);
+    }
   }
 };
 
@@ -42,6 +84,14 @@ static std::vector<Backend> lr_backends;
 static std::mutex rr_mutex;
 static size_t cnn_rr_index = 0;
 static size_t lr_rr_index = 0;
+static std::deque<int> request_queue;
+static std::mutex queue_mutex;
+static std::condition_variable queue_cv;
+static std::atomic<int> queued_requests{0};
+static std::atomic<bool> shutdown_flag{false};
+static int max_queue_size = 256;
+static int max_total_backends = 16;
+static int worker_count = 16;
 
 static std::string to_lower(const std::string& value) {
   std::string result;
@@ -130,6 +180,18 @@ static std::map<std::string, std::string> parse_query_string(const std::string& 
   return params;
 }
 
+static int get_env_int(const std::string& name, int fallback) {
+  const char* env = std::getenv(name.c_str());
+  if (!env || env[0] == '\0') {
+    return fallback;
+  }
+  try {
+    return std::max(1, std::stoi(env));
+  } catch (...) {
+    return fallback;
+  }
+}
+
 static std::string build_query_string(const std::map<std::string, std::string>& params,
                                       const std::string& skip_key) {
   std::string result;
@@ -147,6 +209,20 @@ static std::string build_query_string(const std::map<std::string, std::string>& 
     first = false;
   }
   return result;
+}
+
+static int dequeue_client_fd() {
+  std::unique_lock<std::mutex> lock(queue_mutex);
+  queue_cv.wait(lock, [] {
+    return shutdown_flag.load(std::memory_order_relaxed) || !request_queue.empty();
+  });
+  if (shutdown_flag.load(std::memory_order_relaxed)) {
+    return -1;
+  }
+  int fd = request_queue.front();
+  request_queue.pop_front();
+  queued_requests.fetch_sub(1, std::memory_order_relaxed);
+  return fd;
 }
 
 static std::string normalize_model(const std::string& raw) {
@@ -261,21 +337,29 @@ static int read_http_request(int client_fd, std::string& request_text, std::map<
   }
 }
 
-static int select_backend_index(const std::vector<Backend>& backends, size_t& rr_index) {
-  int min_load = INT_MAX;
+static int select_backend_index(const std::vector<Backend>& backends, size_t& rr_index, int pending_queue_size) {
+  int best_score = INT_MAX;
   std::vector<int> candidates;
   for (int i = 0; i < static_cast<int>(backends.size()); ++i) {
-    int load = backends[i].active_requests.load();
-    if (load < min_load) {
-      min_load = load;
+    const Backend& backend = backends[i];
+    if (!backend.can_accept()) {
+      continue;
+    }
+    int score = backend.active_requests.load(std::memory_order_relaxed);
+    if (backend.is_tripped()) {
+      score += 1000;
+    }
+    score += pending_queue_size / static_cast<int>(backends.size() + 1);
+    if (score < best_score) {
+      best_score = score;
       candidates.clear();
       candidates.push_back(i);
-    } else if (load == min_load) {
+    } else if (score == best_score) {
       candidates.push_back(i);
     }
   }
   if (candidates.empty()) {
-    return 0;
+    return -1;
   }
   int choice = candidates[rr_index % candidates.size()];
   rr_index = (rr_index + 1) % candidates.size();
@@ -312,8 +396,10 @@ static bool proxy_to_backend(const std::string& backend_base,
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
-  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000L);
+  curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+  curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 0L);
 
   struct curl_slist* header_list = nullptr;
   for (const auto& [key, value] : headers) {
@@ -357,7 +443,8 @@ static bool proxy_to_backend(const std::string& backend_base,
 }
 
 static bool build_http_response(int client_fd, int status_code, const std::string& body,
-                                const std::string& content_type, const std::string& request_id) {
+                                const std::string& content_type, const std::string& request_id,
+                                const std::string& connection_value = "close") {
   std::ostringstream response;
   response << "HTTP/1.1 " << status_code << " ";
   if (status_code == 200) {
@@ -370,13 +457,15 @@ static bool build_http_response(int client_fd, int status_code, const std::strin
     response << "Method Not Allowed";
   } else if (status_code == 502) {
     response << "Bad Gateway";
+  } else if (status_code == 503) {
+    response << "Service Unavailable";
   } else {
     response << "Internal Server Error";
   }
   response << "\r\n";
   response << "Content-Type: " << (content_type.empty() ? "application/json" : content_type) << "\r\n";
   response << "Content-Length: " << body.size() << "\r\n";
-  response << "Connection: close\r\n";
+  response << "Connection: " << connection_value << "\r\n";
   response << "Access-Control-Allow-Origin: *\r\n";
   response << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
   response << "Access-Control-Allow-Headers: X-Request-ID, X-Forwarded-By, Content-Type\r\n";
@@ -396,117 +485,162 @@ static void handle_client(int client_fd) {
   std::string target;
   std::string http_version;
   std::string body;
-  if (read_http_request(client_fd, request_text, headers, method, target, http_version, body) < 0) {
-    close(client_fd);
-    return;
-  }
-
   std::string request_id;
-  if (headers.count("x-request-id")) {
-    request_id = headers["x-request-id"];
-  }
+  bool keep_alive = false;
 
-  std::string path;
-  std::string query_string;
-  size_t question = target.find('?');
-  if (question == std::string::npos) {
-    path = target;
-    query_string.clear();
-  } else {
-    path = target.substr(0, question);
-    query_string = target.substr(question + 1);
-  }
+  do {
+    headers.clear();
+    request_text.clear();
+    body.clear();
+    request_id.clear();
 
-  auto query_params = parse_query_string(query_string);
-  std::string model = normalize_model(query_params.count("model") ? query_params["model"] : "");
-  if (model.empty() && headers.count("x-model")) {
-    model = normalize_model(headers["x-model"]);
-  }
-
-  if (method == "OPTIONS") {
-    const std::string empty_body = "";
-    build_http_response(client_fd, 200, empty_body, "application/json", request_id);
-    close(client_fd);
-    return;
-  }
-
-  if (method == "GET" && path == "/health") {
-    std::ostringstream body_stream;
-    body_stream << "{\"status\":\"ok\",\"queues\":{\"cnn\":[";
-    for (size_t i = 0; i < cnn_backends.size(); ++i) {
-      if (i) body_stream << ",";
-      body_stream << cnn_backends[i].active_requests.load();
+    if (read_http_request(client_fd, request_text, headers, method, target, http_version, body) < 0) {
+      break;
     }
-    body_stream << "],\"logreg\":[";
-    for (size_t i = 0; i < lr_backends.size(); ++i) {
-      if (i) body_stream << ",";
-      body_stream << lr_backends[i].active_requests.load();
+
+    if (headers.count("x-request-id")) {
+      request_id = headers["x-request-id"];
     }
-    body_stream << "]}}";
-    build_http_response(client_fd, 200, body_stream.str(), "application/json", request_id);
-    close(client_fd);
-    return;
-  }
 
-  if (method != "POST" || (path != "/predict" && path != "/predict_threshold")) {
-    const std::string error_body = "{\"detail\":\"Unsupported endpoint or method.\"}";
-    build_http_response(client_fd, 404, error_body, "application/json", request_id);
-    close(client_fd);
-    return;
-  }
+    std::string connection_header;
+    if (headers.count("connection")) {
+      connection_header = to_lower(headers["connection"]);
+    }
+    if (http_version == "HTTP/1.1") {
+      keep_alive = (connection_header != "close");
+    } else if (http_version == "HTTP/1.0") {
+      keep_alive = (connection_header == "keep-alive");
+    } else {
+      keep_alive = false;
+    }
+    std::string connection_value = keep_alive ? "keep-alive" : "close";
 
-  if (model.empty()) {
-    const std::string error_body = "{\"detail\":\"Missing or invalid model parameter. Use model=cnn or model=logreg.\"}";
-    build_http_response(client_fd, 400, error_body, "application/json", request_id);
-    close(client_fd);
-    return;
-  }
+    std::string path;
+    std::string query_string;
+    size_t question = target.find('?');
+    if (question == std::string::npos) {
+      path = target;
+      query_string.clear();
+    } else {
+      path = target.substr(0, question);
+      query_string = target.substr(question + 1);
+    }
 
-  std::vector<Backend>* backend_list = nullptr;
-  size_t* rr_index = nullptr;
-  if (model == "cnn") {
-    backend_list = &cnn_backends;
-    rr_index = &cnn_rr_index;
-  } else {
-    backend_list = &lr_backends;
-    rr_index = &lr_rr_index;
-  }
+    auto query_params = parse_query_string(query_string);
+    std::string model = normalize_model(query_params.count("model") ? query_params["model"] : "");
+    if (model.empty() && headers.count("x-model")) {
+      model = normalize_model(headers["x-model"]);
+    }
 
-  int backend_idx;
-  {
-    std::lock_guard<std::mutex> lock(rr_mutex);
-    backend_idx = select_backend_index(*backend_list, *rr_index);
-  }
+    if (method == "OPTIONS") {
+      const std::string empty_body = "";
+      build_http_response(client_fd, 200, empty_body, "application/json", request_id, connection_value);
+      if (!keep_alive) {
+        break;
+      }
+      continue;
+    }
 
-  Backend& backend = (*backend_list)[backend_idx];
-  backend.active_requests.fetch_add(1, std::memory_order_relaxed);
+    if (method == "GET" && path == "/health") {
+      std::ostringstream body_stream;
+      body_stream << "{\"status\":\"ok\",\"queues\":{\"cnn\":[";
+      for (size_t i = 0; i < cnn_backends.size(); ++i) {
+        if (i) body_stream << ",";
+        body_stream << cnn_backends[i].active_requests.load();
+      }
+      body_stream << "],\"logreg\":[";
+      for (size_t i = 0; i < lr_backends.size(); ++i) {
+        if (i) body_stream << ",";
+        body_stream << lr_backends[i].active_requests.load();
+      }
+      body_stream << "],\"queue\": " << queued_requests.load() << "}}";
+      build_http_response(client_fd, 200, body_stream.str(), "application/json", request_id, connection_value);
+      if (!keep_alive) {
+        break;
+      }
+      continue;
+    }
 
-  std::map<std::string, std::string> forward_headers = headers;
-  forward_headers["x-forwarded-by"] = "cpp-load-balancer";
-  if (!request_id.empty()) {
-    forward_headers["x-request-id"] = request_id;
-  }
-  std::string forward_query = build_query_string(query_params, "model");
-  std::string response_body;
-  int response_code = 0;
-  std::string response_content_type;
-  bool success = proxy_to_backend(backend.url, path, forward_query, method, forward_headers, body,
-                                  response_body, response_code, response_content_type);
+    if (method != "POST" || (path != "/predict" && path != "/predict_threshold")) {
+      const std::string error_body = "{\"detail\":\"Unsupported endpoint or method.\"}";
+      build_http_response(client_fd, 404, error_body, "application/json", request_id, connection_value);
+      break;
+    }
 
-  backend.active_requests.fetch_sub(1, std::memory_order_relaxed);
+    if (model.empty()) {
+      const std::string error_body = "{\"detail\":\"Missing or invalid model parameter. Use model=cnn or model=logreg.\"}";
+      build_http_response(client_fd, 400, error_body, "application/json", request_id, connection_value);
+      break;
+    }
 
-  if (!success) {
-    const std::string error_body = "{\"detail\":\"Unable to reach backend service.\"}";
-    build_http_response(client_fd, 502, error_body, "application/json", request_id);
-    close(client_fd);
-    return;
-  }
+    std::vector<Backend>* backend_list = nullptr;
+    size_t* rr_index = nullptr;
+    if (model == "cnn") {
+      backend_list = &cnn_backends;
+      rr_index = &cnn_rr_index;
+    } else {
+      backend_list = &lr_backends;
+      rr_index = &lr_rr_index;
+    }
 
-  if (response_content_type.empty()) {
-    response_content_type = "application/json";
-  }
-  build_http_response(client_fd, response_code, response_body, response_content_type, request_id);
+    int backend_idx = -1;
+    {
+      std::lock_guard<std::mutex> lock(rr_mutex);
+      backend_idx = select_backend_index(*backend_list, *rr_index, queued_requests.load(std::memory_order_relaxed));
+      if (backend_idx >= 0) {
+        (*backend_list)[backend_idx].active_requests.fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+
+    if (backend_idx < 0) {
+      const std::string error_body = "{\"detail\":\"All backends overloaded or unhealthy. Try again later.\"}";
+      build_http_response(client_fd, 503, error_body, "application/json", request_id, connection_value);
+      break;
+    }
+
+    Backend& backend = (*backend_list)[backend_idx];
+    std::map<std::string, std::string> forward_headers = headers;
+    forward_headers["x-forwarded-by"] = "cpp-load-balancer";
+    if (!request_id.empty()) {
+      forward_headers["x-request-id"] = request_id;
+    }
+    std::string forward_query = build_query_string(query_params, "model");
+    std::string response_body;
+    int response_code = 0;
+    std::string response_content_type;
+    bool success = proxy_to_backend(backend.url, path, forward_query, method, forward_headers, body,
+                                    response_body, response_code, response_content_type);
+    bool backend_success = success && response_code >= 200 && response_code < 500;
+    backend.note_backend_result(backend_success);
+    backend.active_requests.fetch_sub(1, std::memory_order_relaxed);
+
+    if (!success) {
+      const std::string error_body = "{\"detail\":\"Unable to reach backend service.\"}";
+      build_http_response(client_fd, 502, error_body, "application/json", request_id, connection_value);
+      break;
+    }
+
+    if (response_content_type.empty()) {
+      response_content_type = "application/json";
+    }
+
+    build_http_response(client_fd, response_code, response_body, response_content_type, request_id, connection_value);
+    if (!keep_alive) {
+      break;
+    }
+  } while (keep_alive);
+
   close(client_fd);
+}
+
+static void worker_loop() {
+  while (!shutdown_flag.load(std::memory_order_relaxed)) {
+    int client_fd = dequeue_client_fd();
+    if (client_fd < 0) {
+      break;
+    }
+    handle_client(client_fd);
+  }
 }
 
 int main() {
@@ -564,11 +698,15 @@ int main() {
     lr_urls = {"http://127.0.0.1:8001", "http://127.0.0.1:8003", "http://127.0.0.1:8005"};
   }
 
+  max_queue_size = get_env_int("LB_MAX_QUEUE", 256);
+  worker_count = get_env_int("LB_WORKER_THREADS", std::max(4u, std::thread::hardware_concurrency() * 2u));
+  int backend_concurrency = get_env_int("LB_MAX_BACKEND_CONCURRENCY", 8);
+
   for (const auto& url : cnn_urls) {
-    cnn_backends.emplace_back(url);
+    cnn_backends.emplace_back(url, backend_concurrency);
   }
   for (const auto& url : lr_urls) {
-    lr_backends.emplace_back(url);
+    lr_backends.emplace_back(url, backend_concurrency);
   }
 
   curl_global_init(CURL_GLOBAL_DEFAULT);
@@ -601,6 +739,9 @@ int main() {
   }
 
   std::cout << "Load balancer listening on port " << port << "\n";
+  std::cout << "Worker threads: " << worker_count << "\n";
+  std::cout << "Max queue size: " << max_queue_size << "\n";
+  std::cout << "Backend concurrency limit: " << backend_concurrency << "\n";
   std::cout << "CNN backends: ";
   for (const auto& backend : cnn_backends) {
     std::cout << backend.url << " ";
@@ -611,6 +752,12 @@ int main() {
     std::cout << backend.url << " ";
   }
   std::cout << "\n";
+
+  std::vector<std::thread> workers;
+  workers.reserve(worker_count);
+  for (int i = 0; i < worker_count; ++i) {
+    workers.emplace_back(worker_loop);
+  }
 
   while (true) {
     sockaddr_in client_addr;
@@ -624,7 +771,26 @@ int main() {
       break;
     }
 
-    std::thread(handle_client, client_fd).detach();
+    {
+      std::lock_guard<std::mutex> lock(queue_mutex);
+      if (queued_requests.load(std::memory_order_relaxed) >= max_queue_size) {
+        const std::string error_body = "{\"detail\":\"Server too busy. Please retry later.\"}";
+        build_http_response(client_fd, 503, error_body, "application/json", "", "close");
+        close(client_fd);
+        continue;
+      }
+      request_queue.push_back(client_fd);
+      queued_requests.fetch_add(1, std::memory_order_relaxed);
+    }
+    queue_cv.notify_one();
+  }
+
+  shutdown_flag.store(true, std::memory_order_relaxed);
+  queue_cv.notify_all();
+  for (auto& worker : workers) {
+    if (worker.joinable()) {
+      worker.join();
+    }
   }
 
   close(server_fd);
