@@ -887,6 +887,10 @@
         width: 100%;
       }
 
+      .threshold-control span {
+        min-width: 28px;
+      }
+
       .result-title,
       .footer-line,
       .threshold-legend {
@@ -901,34 +905,45 @@
       }
 
       .threshold-chart {
-        overflow-x: auto;
+        overflow-x: hidden;
+        width: 100%;
+        min-width: 0;
       }
 
       .threshold-plot {
-        display: grid;
-        grid-auto-flow: column;
-        grid-auto-columns: minmax(48px, 1fr);
-        gap: 4px;
+        display: flex;
+        gap: 3px;
+        width: 100%;
+        min-height: 80px;
         align-items: flex-end;
-        width: max-content;
-        min-height: 90px;
+        justify-content: space-between;
+        flex-wrap: nowrap;
+        overflow-x: hidden;
+        padding-bottom: 14px;
       }
 
       .threshold-cell {
-        flex: 0 0 auto;
-        min-width: 48px;
-        width: 58px;
-        max-width: 68px;
-        height: 56px;
-        padding: 4px 4px;
+        flex: 0 1 calc((100% - 24px) / 9);
+        min-width: 30px;
+        max-width: 52px;
+        height: 52px;
+        padding: 4px 3px;
       }
 
       .threshold-point {
-        font-size: 13px;
+        font-size: 12px;
       }
 
       .threshold-value {
         font-size: 9px;
+      }
+
+      .threshold-title {
+        font-size: 12px;
+      }
+
+      .threshold-legend {
+        font-size: 11px;
       }
     }
 
