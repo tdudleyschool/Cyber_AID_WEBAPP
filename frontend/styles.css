@@ -905,23 +905,30 @@
       }
 
       .threshold-plot {
-        flex-wrap: nowrap;
-        justify-content: space-between;
+        display: grid;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(48px, 1fr);
         gap: 4px;
+        align-items: flex-end;
+        width: max-content;
+        min-height: 90px;
       }
 
       .threshold-cell {
-        min-width: 44px;
-        flex: 1 1 44px;
-        padding: 6px 4px;
+        flex: 0 0 auto;
+        min-width: 48px;
+        width: 58px;
+        max-width: 68px;
+        height: 56px;
+        padding: 4px 4px;
       }
 
       .threshold-point {
-        font-size: 14px;
+        font-size: 13px;
       }
 
       .threshold-value {
-        font-size: 10px;
+        font-size: 9px;
       }
     }
 
