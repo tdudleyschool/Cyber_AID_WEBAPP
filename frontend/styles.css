@@ -901,17 +901,27 @@
       }
 
       .threshold-chart {
-        overflow-x: hidden;
+        overflow-x: auto;
       }
 
       .threshold-plot {
-        flex-wrap: wrap;
-        justify-content: center;
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        gap: 4px;
       }
 
       .threshold-cell {
-        min-width: 72px;
-        flex: 1 1 72px;
+        min-width: 44px;
+        flex: 1 1 44px;
+        padding: 6px 4px;
+      }
+
+      .threshold-point {
+        font-size: 14px;
+      }
+
+      .threshold-value {
+        font-size: 10px;
       }
     }
 
