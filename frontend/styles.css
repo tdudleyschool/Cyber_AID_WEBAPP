@@ -886,6 +886,33 @@
       .threshold-control input {
         width: 100%;
       }
+
+      .result-title,
+      .footer-line,
+      .threshold-legend {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .badge {
+        white-space: normal;
+        max-width: 100%;
+        text-align: center;
+      }
+
+      .threshold-chart {
+        overflow-x: hidden;
+      }
+
+      .threshold-plot {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .threshold-cell {
+        min-width: 72px;
+        flex: 1 1 72px;
+      }
     }
 
     /* ribbon */
