@@ -15,6 +15,8 @@ log_nb_upload_file_test.py
 response.json
 users_test/
 live_stats.json
+styles_old.css.txt
+
 
 
 

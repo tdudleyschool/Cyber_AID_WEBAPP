@@ -214,6 +214,7 @@ function normalizeUrl(value) {
     if (initialServiceCheck) {
       showLoading('Waking up backend services. This may take a few seconds...');
     }
+    //changed to disable loading
     runBtn.disabled = true;
 
     for (let attempt = 1; attempt <= MAX_STARTUP_CHECKS; attempt += 1) {
