@@ -399,6 +399,7 @@ function normalizeUrl(value) {
 
     resultsPlaceholder.style.display = 'none';
     resultsCard.style.display = 'block';
+    resultsCard.style.minHeight = resultsCard.offsetHeight + 'px';
 
     const modelValue = modelSelect.value;
     const modelLabel = modelSelect.options[modelSelect.selectedIndex].text;
@@ -516,6 +517,7 @@ function normalizeUrl(value) {
       footerNote.textContent = 'Connection failed';
       timeStamp.textContent = new Date().toLocaleString();
     }
+    resultsCard.style.minHeight = 'unset';
   }
 
   // Hook button click to sendImage
