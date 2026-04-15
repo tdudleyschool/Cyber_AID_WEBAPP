@@ -677,6 +677,7 @@
       align-items: flex-end;
       overflow: hidden;
       padding-bottom: 18px;
+      flex-wrap: nowrap;
       overflow-x: auto;
     }
     .threshold-cell {
@@ -701,6 +702,7 @@
       font-size: var(--threshold-point-size);
       font-weight: 900;
       line-height: 1;
+      white-space: nowrap;
     }
     .threshold-value {
       font-size: var(--text-size-sm);
