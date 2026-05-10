@@ -42,10 +42,10 @@ The user interface handles orchestration and visualization:
 * **Medical Disclaimer**: The system includes a prominent disclaimer stating it is for demonstration purposes only and does not replace professional clinical diagnosis.
 
 ## Contributors
-* **Basil Agboola** (Main Software Developer, and developer of Lava-Lamp Machine Learning Library)
-* **Briann Briggs** (Main UX-UI Designer, and Research Assistant)
-* **Tafari Dudley** (Project Manager, and Software Developer for python models)
-* **Jafin Khan** (Main Research Lead, and Software Developer for python models)
+* [**Basil Agboola**](https://github.com/zeerkius) (Main Software Developer, and developer of Lava-Lamp Machine Learning Library)
+* [**Briann Briggs**](https://github.com/briannbriggs) (Main UX-UI Designer, and Research Assistant)
+* [**Tafari Dudley**](https://github.com/tdudleyschool) (Project Manager, and Software Developer for python models)
+* [**Jafin Khan**](https://github.com/Jafin-Khan) (Main Research Lead, and Software Developer for python models)
 
 *Department of Computer Science, Prairie View A&M University (May 2026)*
 
