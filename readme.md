@@ -36,12 +36,12 @@ The user interface handles orchestration and visualization:
 * **Traditional ML**: Logistic Regression optimized with Histogram of Oriented Gradients (HOG) achieved an accuracy of **0.88**.
 * **Early Detection**: Models demonstrated the ability to differentiate Moderate and Mild cases but faced challenges with Very Mild Alzheimer's stages.
 
-## ⚖️ Ethical Standards & Security
+## Ethical Standards & Security
 * **Data Privacy**: All patient data is de-identified, and images are not stored on the server to maintain privacy.
 * **Standards Compliance**: Adheres to the NIST AI Risk Management Framework (RMF) and TEVV (Testing, Evaluation, Verification, Validation) protocols.
 * **Medical Disclaimer**: The system includes a prominent disclaimer stating it is for demonstration purposes only and does not replace professional clinical diagnosis.
 
-## 👥 Contributors
+## Contributors
 * **Basil Agboola** (Main Software Developer, and developer of Lava-Lamp Machine Learning Library)
 * **Briann Briggs** (Main UX-UI Designer, and Research Assistant)
 * **Tafari Dudley** (Project Manager, and Software Developer for python models)
