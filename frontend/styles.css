@@ -232,19 +232,19 @@
     .logo {
       width: var(--logo-size);
       height: var(--logo-size);
-      border-radius: 50%; /* 👈 makes it a circle */
+      border-radius: 50%; /*makes it a circle */
       background: var(--logo-bg);
       display: flex; /* better for image centering */
       align-items: center;
       justify-content: center;
-      overflow: hidden; /* 👈 important: clips image into circle */
+      overflow: hidden; /*important: clips image into circle */
       box-shadow: var(--shadow);
     }
     .logo img {
       width: 100%;
       height: 100%;
-      object-fit: contain;   /* 👈 prevents cropping */
-      /*padding: 8px;          /* 👈 creates “emoji-like breathing room” */
+      object-fit: contain;   /*prevents cropping */
+      /*padding: 8px;          /*creates “emoji-like breathing room” */
       box-sizing: border-box;
     }
     .brand h1 {

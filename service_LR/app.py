@@ -16,9 +16,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------
 # Load model once at startup
-# -----------------------------
+
 MODEL_PATH = "logreg_pipeline_1.pkl"
 INSTANCE_NAME = os.getenv("SERVICE_INSTANCE", "logreg-service")
 
@@ -31,9 +30,8 @@ except Exception as e:
     print(f"Error loading model: {e}")
 
 
-# -----------------------------
 # Helper function
-# -----------------------------
+
 def preprocess_image(image_bytes: bytes):
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
@@ -53,9 +51,8 @@ def preprocess_image(image_bytes: bytes):
     return features
 
 
-# -----------------------------
 # Routes
-# -----------------------------
+
 @app.get("/")
 def root():
     return {"message": "API is running."}
@@ -138,16 +135,16 @@ async def predict_threshold(
                 detail="This model does not support probability prediction."
             )
 
-        # --- probability ---
+        # probability
         probs = model.predict_proba(features)[0]
         malignant_prob = float(probs[1])
         benign_prob = float(probs[0])
 
-        # --- single threshold prediction ---
+        # single threshold prediction
         pred = int(malignant_prob >= threshold)
         label = "Malignant" if pred == 1 else "Benign"
 
-        # --- threshold sweep ---
+        # threshold sweep
         thresholds = np.arange(0.1, 1.0, 0.1)
 
         sweep = []

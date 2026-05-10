@@ -149,11 +149,11 @@ async def predict_threshold(
             output = model(image_tensor)
             prob = torch.sigmoid(output).item()
 
-        # --- single threshold prediction ---
+        # single threshold prediction
         pred = int(prob >= threshold)
         label = "Malignant" if pred == 1 else "Benign"
 
-        # --- threshold sweep ---
+        # threshold sweep
         thresholds = np.arange(0.1, 1.0, 0.1)
 
         sweep = []
